@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cascading Failures — A Concentration Risk Simulation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy: #12233A;
+    --navy-2: #1B3A57;
+    --deep-blue: #0B4F71;
+    --teal: #1C7293;
+    --teal-light: #6FA8C4;
+    --coral: #E8604C;
+    --coral-dim: #7a3529;
+    --bg: #F4F7FA;
+    --white: #FFFFFF;
+    --text-dark: #1A2733;
+    --muted: #5B6B7A;
+    --line: #C7D2DA;
+    --green: #2E9E6B;
+    --purple: #8B5CF6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text-dark);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background: var(--coral); color: white; }
+
+  .mode-selector{
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    gap: 10px;
+    background: var(--white);
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  
+  .mode-btn{
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    background: transparent;
+    color: var(--muted);
+  }
+  
+  .mode-btn.active{
+    background: var(--teal);
+    color: white;
+  }
+  
+  .mode-btn:hover{
+    color: var(--teal);
+  }
+
+  .wrap{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 48px 28px 80px;
+  }
+
+  header.top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:24px;
+    margin-bottom:36px;
+    flex-wrap:wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+  }
+  
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color: var(--teal);
+    font-weight:500;
+    margin-bottom:10px;
+  }
+  
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:44px;
+    line-height:1.05;
+    margin:0;
+    color: var(--navy);
+    letter-spacing:-0.5px;
+  }
+  
+  h1 em{ font-style:italic; color:var(--coral); font-weight:600;}
+  
+  .lede{
+    max-width:420px;
+    font-size:15px;
+    line-height:1.55;
+    color: var(--muted);
+  }
+
+  /* MODE-SPECIFIC STYLES */
+  .presenter-only, .user-only{
+    display: none;
+  }
+  
+  body.presenter-mode .presenter-only{
+    display: block;
+  }
+  
+  body.user-mode .user-only{
+    display: block;
+  }
+  
+  body.user-mode .presenter-only{
+    display: none !important;
+  }
+  
+  body.user-mode .stage{
+    grid-template-columns: 1fr;
+  }
+
+  /* ===== STAGE ===== */
+  .stage{
+    position:relative;
+    background: var(--navy);
+    border-radius: 22px;
+    padding: 40px;
+    min-height: 560px;
+    overflow:hidden;
+    display:grid;
+    grid-template-columns: 1fr 300px;
+    gap: 28px;
+  }
+  
+  .stage::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(28,114,147,0.35), transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(232,96,76,0.12), transparent 40%);
+    pointer-events:none;
+  }
+
+  .arena{
+    position:relative;
+    min-height: 480px;
+  }
+
+  .status-row{
+    position:relative;
+    z-index:3;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    margin-bottom: 8px;
+  }
+  
+  .status-pill{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    padding:7px 14px;
+    border-radius:999px;
+    background: rgba(255,255,255,0.06);
+    color: var(--teal-light);
+    border:1px solid rgba(255,255,255,0.1);
+    transition: all .35s ease;
+  }
+  
+  .status-pill.warn{
+    background: rgba(232,96,76,0.16);
+    color:#ffb3a3;
+    border-color: rgba(232,96,76,0.4);
+  }
+
+  .load-readout{
+    text-align:right;
+    color:white;
+  }
+  
+  .load-readout .num{
+    font-family:'Fraunces', serif;
+    font-size:15px;
+    color: var(--teal-light);
+  }
+
+  /* User activity area */
+  .user-area{
+    position:relative;
+    width:100%;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .users-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    flex: 1;
+  }
+  
+  .user-card{
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .user-card.active{
+    background: rgba(111,168,196,0.15);
+    border-color: rgba(111,168,196,0.4);
+    box-shadow: 0 0 20px rgba(111,168,196,0.2);
+  }
+  
+  .user-card.failed{
+    background: rgba(232,96,76,0.15);
+    border-color: rgba(232,96,76,0.4);
+    box-shadow: 0 0 20px rgba(232,96,76,0.2);
+  }
+  
+  .user-icon{
+    font-size: 32px;
+  }
+  
+  .user-name{
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+  }
+  
+  .user-activity{
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.3;
+    min-height: 30px;
+  }
+  
+  .user-card.failed .user-activity{
+    color: #ffb3a3;
+    font-weight: 600;
+  }
+  
+  .user-status{
+    font-size: 9px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+  }
+  
+  .user-card.active .user-status{
+    background: rgba(46,158,107,0.3);
+    color: #b9ecd3;
+  }
+  
+  .user-card.failed .user-status{
+    background: rgba(232,96,76,0.3);
+    color: #ffb3a3;
+  }
+
+  /* side panel */
+  .panel{
+    position:relative;
+    z-index:3;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  
+  .panel-card{
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius:14px;
+    padding:16px 18px;
+  }
+  
+  .panel-title{
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color: var(--teal-light);
+    margin-bottom:10px;
+  }
+
+  .btn{
+    width:100%;
+    padding:11px 14px;
+    border-radius:10px;
+    border:none;
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    transition: transform .15s ease, opacity .2s ease, box-shadow .2s ease;
+    margin-top:8px;
+  }
+  
+  .btn:first-of-type{ margin-top:0; }
+  .btn:active{ transform: scale(0.98); }
+  .btn:disabled{ opacity:0.35; cursor:not-allowed; }
+  
+  .btn-primary{ background: var(--teal-light); color: var(--navy); }
+  .btn-primary:hover:not(:disabled){ box-shadow: 0 6px 18px -6px rgba(111,168,196,0.6); }
+  
+  .btn-danger{ background: var(--coral); color: white; }
+  .btn-danger:hover:not(:disabled){ box-shadow: 0 6px 18px -6px rgba(232,96,76,0.6); }
+  
+  .btn-ghost{ background: transparent; color: rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.18); }
+  .btn-ghost:hover{ color:white; border-color: rgba(255,255,255,0.4); }
+
+  .log{
+    height:190px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column-reverse;
+    gap:6px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+  }
+  
+  .log::-webkit-scrollbar{ width:5px; }
+  .log::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+  
+  .log-entry{
+    padding:6px 9px;
+    border-radius:7px;
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.65);
+    border-left: 2px solid rgba(255,255,255,0.15);
+    animation: slideIn .3s ease;
+  }
+  
+  .log-entry.bad{ border-left-color: var(--coral); color:#ffcfc4; background: rgba(232,96,76,0.08); }
+  .log-entry.good{ border-left-color: var(--green); color:#b9ecd3; }
+  .log-empty{ color: rgba(255,255,255,0.3); font-style:italic; }
+  
+  @keyframes slideIn{ from{ opacity:0; transform: translateY(-6px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ===== below stage ===== */
+  .lower{
+    margin-top: 40px;
+    display:grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 28px;
+  }
+  
+  .explain-card{
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 26px 28px;
+  }
+  
+  .explain-card h2{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    margin:0 0 10px;
+    color: var(--navy);
+  }
+  
+  .explain-card p{
+    font-size:14px; line-height:1.6; color: var(--muted); margin: 0 0 10px;
+  }
+  
+  .explain-card p:last-child{ margin-bottom:0; }
+  .explain-card strong{ color: var(--text-dark); }
+
+  .discuss-card{
+    background: var(--navy-2);
+    border-radius: 16px;
+    padding: 26px 28px;
+    color: white;
+  }
+  
+  .discuss-card h2{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    margin:0 0 14px;
+    color: white;
+  }
+  
+  .discuss-card ol{
+    margin:0; padding-left:20px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  
+  .discuss-card li{
+    font-size:13.5px; line-height:1.5; color: rgba(255,255,255,0.85);
+  }
+  
+  .discuss-card li::marker{ color: var(--coral); font-weight:700; }
+
+  .howto{
+    margin-top:20px;
+    font-size:12px;
+    color: var(--muted);
+    border-top:1px solid var(--line);
+    padding-top:16px;
+    display:flex; gap:10px; align-items:baseline;
+  }
+  
+  .howto b{ color: var(--teal); font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; white-space:nowrap;}
+
+  .join-section{
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 26px 28px;
+    text-align: center;
+  }
+  
+  .join-section h2{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    margin:0 0 16px;
+    color: var(--navy);
+  }
+  
+  .join-btn{
+    background: var(--teal);
+    color: var(--navy);
+    padding: 14px 28px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .join-btn:hover{
+    box-shadow: 0 8px 20px rgba(28,114,147,0.3);
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 880px){
+    .stage{ grid-template-columns: 1fr; }
+    .lower{ grid-template-columns: 1fr; }
+    h1{ font-size:32px; }
+    .users-grid{ grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  }
+</style>
+</head>
+<body class="presenter-mode">
+
+<div class="mode-selector">
+  <button class="mode-btn active" id="presenterBtn" onclick="switchMode('presenter')">📊 Presenter</button>
+  <button class="mode-btn" id="userBtn" onclick="switchMode('user')">👤 User</button>
+</div>
+
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="eyebrow">Live Demo · Cascading Failures</div>
+      <h1>System <em>Cascade</em>.</h1>
+    </div>
+    <p class="lede presenter-only">Control the simulation: add users, trigger system failures, and watch how problems ripple across all connected services.</p>
+    <p class="lede user-only">Join the system, perform your activities, and experience what happens when infrastructure fails.</p>
+  </header>
+
+  <div class="stage">
+    <div class="arena">
+      <div class="status-row">
+        <div class="status-pill" id="statusPill">System operational</div>
+        <div class="load-readout">
+          <div class="num" id="loadNum">0 users connected</div>
+        </div>
+      </div>
+
+      <div class="user-area" id="userArea">
+        <div class="users-grid" id="usersGrid"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-card presenter-only">
+        <div class="panel-title">Presenter Controls</div>
+        <button class="btn btn-primary" id="addUserBtn">+ Add User</button>
+        <button class="btn btn-danger" id="triggerFailureBtn" disabled>Trigger Cascade</button>
+        <button class="btn btn-ghost" id="resetBtn">Reset</button>
+      </div>
+
+      <div class="panel-card user-only" style="display:none;">
+        <div class="panel-title">Your Actions</div>
+        <button class="btn btn-primary" id="joinBtn">Join System</button>
+        <button class="btn btn-ghost" id="leaveBtn" disabled>Leave System</button>
+      </div>
+
+      <div class="panel-card" style="flex:1; display:flex; flex-direction:column;">
+        <div class="panel-title">System Log</div>
+        <div class="log" id="log">
+          <div class="log-empty">Waiting for activity...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lower">
+    <div class="explain-card presenter-only">
+      <h2>Cascading Failures Explained</h2>
+      <p id="explainText"><strong>Add users one by one</strong> to represent people joining different services that share the same infrastructure. Each user performs a different activity — payments, messages, video calls, etc.</p>
+      <p id="explainText2" style="display:none;"></p>
+    </div>
+
+    <div class="join-section user-only" style="display:none;">
+      <h2>Join the Experience</h2>
+      <p>Click below to join the system and perform activities. See what happens when infrastructure fails.</p>
+      <button class="join-btn" id="mainJoinBtn">Join Now</button>
+    </div>
+
+    <div class="discuss-card presenter-only">
+      <h2>Teaching Points</h2>
+      <ol>
+        <li>One infrastructure failure affects <em>all</em> users simultaneously</li>
+        <li>Users don't know they share infrastructure until it fails</li>
+        <li>Failure cascades based on service dependencies</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="howto presenter-only">
+    <b>For the Presenter</b>
+    <span>Add 5-8 users, let them "perform activities" for a moment, then click "Trigger Cascade" to show how a single infrastructure failure affects everyone at once. Share the user link to let people experience being affected by failures they can't control.</span>
+  </div>
+
+</div>
+
+<script>
+const USERS_CONFIG = [
+  { icon:"💬", name:"Alex", activity:"sending message", fail:"Message failed to send" },
+  { icon:"💳", name:"Jordan", activity:"processing payment", fail:"Payment stuck in queue" },
+  { icon:"📞", name:"Casey", activity:"on video call", fail:"Call disconnected" },
+  { icon:"📊", name:"Morgan", activity:"uploading report", fail:"Upload timeout" },
+  { icon:"🎮", name:"Sam", activity:"gaming session", fail:"Connection lost" },
+  { icon:"📚", name:"Riley", activity:"studying online", fail:"Platform down" },
+  { icon:"🏥", name:"Taylor", activity:"health app check", fail:"Appointment cancelled" },
+  { icon:"🚀", name:"Jamie", activity:"dev deployment", fail:"Build pipeline failed" },
+];
+
+let currentMode = 'presenter';
+let users = [];
+let cascadeTriggered = false;
+
+function switchMode(mode){
+  currentMode = mode;
+  document.body.className = mode + '-mode';
+  document.getElementById('presenterBtn').classList.toggle('active', mode === 'presenter');
+  document.getElementById('userBtn').classList.toggle('active', mode === 'user');
+  
+  if(mode === 'user' && users.length === 0){
+    addLog('Welcome! Waiting for the presenter to start the simulation...', null);
+  }
+}
+
+function clearLogEmpty(){
+  const empty = document.getElementById('log').querySelector('.log-empty');
+  if(empty) empty.remove();
+}
+
+function addLog(text, kind){
+  clearLogEmpty();
+  const e = document.createElement('div');
+  e.className = 'log-entry' + (kind ? ' ' + kind : '');
+  e.textContent = text;
+  document.getElementById('log').prepend(e);
+}
+
+function createUserCard(user, index){
+  const card = document.createElement('div');
+  card.className = 'user-card active';
+  card.id = 'user-' + index;
+  card.innerHTML = `
+    <div class="user-icon">${user.icon}</div>
+    <div class="user-name">${user.name}</div>
+    <div class="user-activity">${user.activity}</div>
+    <div class="user-status">Connected</div>
+  `;
+  return card;
+}
+
+function addUser(){
+  if(users.length >= USERS_CONFIG.length) return;
+  
+  const user = USERS_CONFIG[users.length];
+  users.push({...user, failed: false, joined: true});
+  
+  const card = createUserCard(user, users.length - 1);
+  document.getElementById('usersGrid').appendChild(card);
+  
+  document.getElementById('loadNum').textContent = users.length + ' users connected';
+  document.getElementById('statusPill').textContent = 'System operational - ' + users.length + ' users';
+  
+  addLog(`${user.name} joined and is ${user.activity}`, 'good');
+  
+  if(users.length >= 3){
+    document.getElementById('triggerFailureBtn').disabled = false;
+  }
+}
+
+function triggerCascade(){
+  if(cascadeTriggered) return;
+  cascadeTriggered = true;
+  
+  document.getElementById('triggerFailureBtn').disabled = true;
+  document.getElementById('addUserBtn').disabled = true;
+  
+  document.getElementById('statusPill').textContent = 'INFRASTRUCTURE FAILURE DETECTED';
+  document.getElementById('statusPill').classList.add('warn');
+  
+  addLog('⚠️ Critical: Infrastructure layer has failed', 'bad');
+  addLog('Cascading failures initiating across all services...', null);
+  
+  users.forEach((user, index) => {
+    setTimeout(() => {
+      user.failed = true;
+      const card = document.getElementById('user-' + index);
+      if(card){
+        card.classList.remove('active');
+        card.classList.add('failed');
+        card.querySelector('.user-status').textContent = 'Failed';
+        card.querySelector('.user-activity').textContent = user.fail;
+      }
+      addLog(`❌ ${user.name} — ${user.fail}`, 'bad');
+    }, 300 + index * 400);
+  });
+  
+  setTimeout(() => {
+    addLog('All services affected simultaneously. Infrastructure failure = cascade.', null);
+    document.getElementById('explainText').innerHTML = `<strong>Watch what just happened:</strong> One infrastructure failure affected ${users.length} different users and services at the same time. None of them did anything wrong. Their apps didn't fail — the shared infrastructure they all depended on did.`;
+    document.getElementById('explainText2').style.display = 'block';
+    document.getElementById('explainText2').innerHTML = `This is concentration risk in action: <strong>when systems share infrastructure, failure in that infrastructure becomes failure for everyone.</strong>`;
+  }, 300 + users.length * 400 + 400);
+}
+
+function reset(){
+  users = [];
+  cascadeTriggered = false;
+  document.getElementById('usersGrid').innerHTML = '';
+  document.getElementById('loadNum').textContent = '0 users connected';
+  document.getElementById('statusPill').textContent = 'System operational';
+  document.getElementById('statusPill').classList.remove('warn');
+  document.getElementById('triggerFailureBtn').disabled = true;
+  document.getElementById('addUserBtn').disabled = false;
+  document.getElementById('log').innerHTML = '<div class="log-empty">Waiting for activity...</div>';
+  document.getElementById('explainText').innerHTML = `<strong>Add users one by one</strong> to represent people joining different services that share the same infrastructure. Each user performs a different activity — payments, messages, video calls, etc.`;
+  document.getElementById('explainText2').style.display = 'none';
+}
+
+function joinAsUser(){
+  if(users.some(u => u.isCurrentUser)) return;
+  
+  if(users.length === 0){
+    addLog('Presenter hasnt started the simulation yet. Please wait...', null);
+    return;
+  }
+  
+  const randomUser = USERS_CONFIG[Math.floor(Math.random() * USERS_CONFIG.length)];
+  const userProfile = {...randomUser, isCurrentUser: true, failed: false};
+  users.push(userProfile);
+  
+  document.getElementById('joinBtn').disabled = true;
+  document.getElementById('leaveBtn').disabled = false;
+  
+  addLog(`You joined as ${randomUser.name} - ${randomUser.activity}`, 'good');
+}
+
+function leaveSystem(){
+  users = users.filter(u => !u.isCurrentUser);
+  document.getElementById('joinBtn').disabled = false;
+  document.getElementById('leaveBtn').disabled = true;
+  addLog('You left the system', null);
+}
+
+// Event listeners
+if(document.getElementById('addUserBtn')){
+  document.getElementById('addUserBtn').addEventListener('click', addUser);
+}
+
+if(document.getElementById('triggerFailureBtn')){
+  document.getElementById('triggerFailureBtn').addEventListener('click', triggerCascade);
+}
+
+if(document.getElementById('resetBtn')){
+  document.getElementById('resetBtn').addEventListener('click', reset);
+}
+
+if(document.getElementById('joinBtn')){
+  document.getElementById('joinBtn').addEventListener('click', joinAsUser);
+}
+
+if(document.getElementById('leaveBtn')){
+  document.getElementById('leaveBtn').addEventListener('click', leaveSystem);
+}
+
+if(document.getElementById('mainJoinBtn')){
+  document.getElementById('mainJoinBtn').addEventListener('click', () => {
+    document.getElementById('userBtn').click();
+    document.getElementById('joinBtn').click();
+  });
+}
+
+addLog('Presenter mode active. Ready to demonstrate cascading failures.', 'good');
+</script>
+
+</body>
+</html>
