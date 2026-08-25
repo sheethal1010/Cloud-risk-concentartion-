@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk Distribution — Architecture Comparison Simulation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy: #12233A;
+    --navy-2: #1B3A57;
+    --deep-blue: #0B4F71;
+    --teal: #1C7293;
+    --teal-light: #6FA8C4;
+    --coral: #E8604C;
+    --coral-dim: #7a3529;
+    --bg: #F4F7FA;
+    --white: #FFFFFF;
+    --text-dark: #1A2733;
+    --muted: #5B6B7A;
+    --line: #C7D2DA;
+    --green: #2E9E6B;
+    --purple: #8B5CF6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text-dark);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background: var(--coral); color: white; }
+
+  .mode-selector{
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    gap: 10px;
+    background: var(--white);
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  
+  .mode-btn{
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    background: transparent;
+    color: var(--muted);
+  }
+  
+  .mode-btn.active{
+    background: var(--teal);
+    color: white;
+  }
+  
+  .mode-btn:hover{
+    color: var(--teal);
+  }
+
+  .wrap{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 48px 28px 80px;
+  }
+
+  header.top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:24px;
+    margin-bottom:36px;
+    flex-wrap:wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+  }
+  
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color: var(--teal);
+    font-weight:500;
+    margin-bottom:10px;
+  }
+  
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:44px;
+    line-height:1.05;
+    margin:0;
+    color: var(--navy);
+    letter-spacing:-0.5px;
+  }
+  
+  h1 em{ font-style:italic; color:var(--coral); font-weight:600;}
+  
+  .lede{
+    max-width:420px;
+    font-size:15px;
+    line-height:1.55;
+    color: var(--muted);
+  }
+
+  /* MODE-SPECIFIC STYLES */
+  .presenter-only, .user-only{
+    display: none;
+  }
+  
+  body.presenter-mode .presenter-only{
+    display: block;
+  }
+  
+  body.user-mode .user-only{
+    display: block;
+  }
+  
+  body.user-mode .presenter-only{
+    display: none !important;
+  }
+
+  /* ===== ARCHITECTURES ===== */
+  .architectures{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    margin: 40px 0;
+  }
+
+  .architecture{
+    background: var(--white);
+    border: 2px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+    transition: all 0.3s ease;
+  }
+
+  .architecture:hover{
+    border-color: var(--teal);
+    box-shadow: 0 8px 24px -8px rgba(28,114,147,0.2);
+  }
+
+  .arch-title{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    margin:0 0 8px;
+    color: var(--navy);
+  }
+
+  .arch-desc{
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+
+  .arch-diagram{
+    background: var(--navy);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .server{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    background: rgba(111,168,196,0.2);
+    border: 2px solid rgba(111,168,196,0.5);
+    color: white;
+    font-size: 24px;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .server.failed{
+    background: rgba(232,96,76,0.2);
+    border-color: rgba(232,96,76,0.5);
+    opacity: 0.5;
+  }
+
+  .server + .server{
+    margin-left: 12px;
+  }
+
+  .arch-single{
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .arch-distributed{
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  .connection-line{
+    position: absolute;
+    height: 2px;
+    background: rgba(111,168,196,0.3);
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .metrics{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .metric{
+    background: var(--bg);
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 3px solid var(--teal);
+  }
+
+  .metric.warning{
+    border-left-color: var(--coral);
+  }
+
+  .metric.success{
+    border-left-color: var(--green);
+  }
+
+  .metric-label{
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .metric-value{
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-top: 4px;
+  }
+
+  .controls{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .btn{
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-small{
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .btn:active{ transform: scale(0.98); }
+  .btn:disabled{ opacity: 0.35; cursor: not-allowed; }
+
+  .btn-primary{ background: var(--teal-light); color: var(--navy); }
+  .btn-primary:hover:not(:disabled){ box-shadow: 0 4px 12px rgba(111,168,196,0.4); }
+
+  .btn-danger{ background: var(--coral); color: white; }
+  .btn-danger:hover:not(:disabled){ box-shadow: 0 4px 12px rgba(232,96,76,0.4); }
+
+  .btn-ghost{ background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .btn-ghost:hover:not(:disabled){ color: var(--teal); border-color: var(--teal); }
+
+  .comparison{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 40px;
+  }
+
+  .comparison-card{
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .comparison-card h3{
+    font-family:'Fraunces', serif;
+    font-size: 18px;
+    margin: 0 0 16px;
+    color: var(--navy);
+  }
+
+  .comparison-list{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .comparison-list li{
+    font-size: 13px;
+    line-height: 1.5;
+    padding-left: 24px;
+    position: relative;
+    color: var(--muted);
+  }
+
+  .comparison-list li::before{
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .log{
+    background: var(--navy);
+    border-radius: 12px;
+    padding: 16px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 16px;
+  }
+
+  .log-entry{
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .log-entry:last-child{
+    border-bottom: none;
+  }
+
+  .log-entry.good{ color: #b9ecd3; }
+  .log-entry.bad{ color: #ffb3a3; }
+
+  .explain-card{
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 26px 28px;
+    margin-top: 40px;
+  }
+
+  .explain-card h2{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    margin:0 0 10px;
+    color: var(--navy);
+  }
+
+  .explain-card p{
+    font-size:14px; line-height:1.6; color: var(--muted); margin: 0 0 10px;
+  }
+
+  .explain-card strong{ color: var(--text-dark); }
+
+  @media (max-width: 900px){
+    .architectures{ grid-template-columns: 1fr; }
+    .comparison{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="presenter-mode">
+
+<div class="mode-selector">
+  <button class="mode-btn active" id="presenterBtn" onclick="switchMode('presenter')">📊 Presenter</button>
+  <button class="mode-btn" id="userBtn" onclick="switchMode('user')">👤 Observer</button>
+</div>
+
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="eyebrow">Simulation · Risk Mitigation</div>
+      <h1>Risk <em>Distribution</em>.</h1>
+    </div>
+    <p class="lede presenter-only">Compare three architectural approaches: Single point of failure, Redundancy, and Distributed systems.</p>
+    <p class="lede user-only">Watch how different system architectures handle failures differently.</p>
+  </header>
+
+  <div class="architectures" id="architectures"></div>
+
+  <div class="explain-card">
+    <h2 id="explainTitle">How Architecture Affects Risk</h2>
+    <p id="explainText">Select an architecture and trigger a failure to see how different design approaches mitigate (or amplify) concentration risk. Red represents failed components.</p>
+  </div>
+
+  <div class="comparison presenter-only" id="comparison">
+    <div class="comparison-card">
+      <h3>🎯 Single Point</h3>
+      <ul class="comparison-list">
+        <li>Simplest to build</li>
+        <li>Lowest operational cost</li>
+        <li>All users affected by any failure</li>
+        <li>High concentration risk</li>
+      </ul>
+    </div>
+    <div class="comparison-card">
+      <h3>🔄 Redundancy</h3>
+      <ul class="comparison-list">
+        <li>Automatic failover</li>
+        <li>No user impact during failures</li>
+        <li>Still single infrastructure</li>
+        <li>Higher costs</li>
+      </ul>
+    </div>
+    <div class="comparison-card">
+      <h3>🌐 Distributed</h3>
+      <ul class="comparison-list">
+        <li>Limits failure scope</li>
+        <li>Users in other regions unaffected</li>
+        <li>Complex to manage</li>
+        <li>Best resilience</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ARCHITECTURES = [
+  {
+    id: 'single',
+    name: 'Single Point',
+    icon: '🎯',
+    desc: 'One server, all users depend on it',
+    servers: ['server'],
+    resilience: 'None',
+    failureImpact: '100%'
+  },
+  {
+    id: 'redundant',
+    name: 'Redundant Backup',
+    icon: '🔄',
+    desc: 'Primary + backup server (same location)',
+    servers: ['primary', 'backup'],
+    resilience: 'Automatic',
+    failureImpact: '0%'
+  },
+  {
+    id: 'distributed',
+    name: 'Distributed',
+    icon: '🌐',
+    desc: 'Multiple regions, independent servers',
+    servers: ['us-east', 'eu-west', 'ap-south'],
+    resilience: 'Partial',
+    failureImpact: '33%'
+  }
+];
+
+let currentMode = 'presenter';
+let failureState = {};
+
+function switchMode(mode){
+  currentMode = mode;
+  document.body.className = mode + '-mode';
+  document.getElementById('presenterBtn').classList.toggle('active', mode === 'presenter');
+  document.getElementById('userBtn').classList.toggle('active', mode === 'user');
+}
+
+function createArchitectureCard(arch){
+  const card = document.createElement('div');
+  card.className = 'architecture';
+  card.id = 'arch-' + arch.id;
+
+  let diagram = `<div class="arch-diagram" id="diagram-${arch.id}">`;
+  
+  if(arch.id === 'single'){
+    diagram += `<div class="server" data-arch="${arch.id}" data-server="server">🖥️</div>`;
+  } else if(arch.id === 'redundant'){
+    diagram += `<div class="server" data-arch="${arch.id}" data-server="primary">🖥️</div>`;
+    diagram += `<div class="server" data-arch="${arch.id}" data-server="backup">🖥️</div>`;
+  } else {
+    diagram += `<div class="server" data-arch="${arch.id}" data-server="us-east">🌎</div>`;
+    diagram += `<div class="server" data-arch="${arch.id}" data-server="eu-west">🌍</div>`;
+    diagram += `<div class="server" data-arch="${arch.id}" data-server="ap-south">🌏</div>`;
+  }
+  
+  diagram += `</div>`;
+
+  card.innerHTML = `
+    <div class="arch-title">${arch.icon} ${arch.name}</div>
+    <div class="arch-desc">${arch.desc}</div>
+    ${diagram}
+    <div class="metrics">
+      <div class="metric ${arch.failureImpact === '0%' ? 'success' : arch.failureImpact === '100%' ? 'warning' : ''}">
+        <div class="metric-label">Failure Impact</div>
+        <div class="metric-value">${arch.failureImpact}</div>
+      </div>
+      <div class="metric ${arch.resilience === 'Partial' ? '' : arch.resilience === 'Automatic' ? 'success' : 'warning'}">
+        <div class="metric-label">Resilience</div>
+        <div class="metric-value">${arch.resilience}</div>
+      </div>
+    </div>
+    <div class="controls presenter-only">
+      <button class="btn btn-primary btn-small" onclick="triggerFailure('${arch.id}')">Trigger Failure</button>
+      <button class="btn btn-ghost btn-small" onclick="resetArchitecture('${arch.id}')">Reset</button>
+    </div>
+  `;
+
+  return card;
+}
+
+function triggerFailure(archId){
+  const arch = ARCHITECTURES.find(a => a.id === archId);
+  if(!arch) return;
+
+  if(!failureState[archId]){
+    failureState[archId] = {failed: []};
+  }
+
+  if(archId === 'single'){
+    const server = document.querySelector(`[data-arch="${archId}"][data-server="server"]`);
+    server.classList.add('failed');
+    failureState[archId].failed = ['server'];
+    updateMetrics(archId, '100%', 'Failed');
+  } else if(archId === 'redundant'){
+    const primary = document.querySelector(`[data-arch="${archId}"][data-server="primary"]`);
+    primary.classList.add('failed');
+    failureState[archId].failed = ['primary'];
+    updateMetrics(archId, '0%', 'Backup Active');
+  } else if(archId === 'distributed'){
+    if(failureState[archId].failed.length < 2){
+      const regions = ['us-east', 'eu-west', 'ap-south'];
+      const toFail = regions.find(r => !failureState[archId].failed.includes(r));
+      const server = document.querySelector(`[data-arch="${archId}"][data-server="${toFail}"]`);
+      server.classList.add('failed');
+      failureState[archId].failed.push(toFail);
+      
+      const impactPercent = (failureState[archId].failed.length / 3 * 100).toFixed(0) + '%';
+      updateMetrics(archId, impactPercent, 'Partial Loss');
+    }
+  }
+
+  document.querySelector(`#arch-${archId} .btn-primary`).disabled = true;
+}
+
+function resetArchitecture(archId){
+  document.querySelectorAll(`[data-arch="${archId}"][data-server]`).forEach(s => {
+    s.classList.remove('failed');
+  });
+  failureState[archId] = {failed: []};
+  
+  const arch = ARCHITECTURES.find(a => a.id === archId);
+  updateMetrics(archId, arch.failureImpact, arch.resilience);
+  
+  document.querySelector(`#arch-${archId} .btn-primary`).disabled = false;
+}
+
+function updateMetrics(archId, impact, resilience){
+  const card = document.getElementById('arch-' + archId);
+  const metrics = card.querySelectorAll('.metric');
+  metrics[0].querySelector('.metric-value').textContent = impact;
+  metrics[1].querySelector('.metric-value').textContent = resilience;
+}
+
+// Render all architectures
+const container = document.getElementById('architectures');
+ARCHITECTURES.forEach(arch => {
+  container.appendChild(createArchitectureCard(arch));
+  failureState[arch.id] = {failed: []};
+});
+</script>
+
+</body>
+</html>
