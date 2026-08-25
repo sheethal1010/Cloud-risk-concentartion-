@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Shared Server — A Concentration Risk Simulation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --navy: #12233A;
+      --navy-2: #1B3A57;
+      --deep-blue: #0B4F71;
+      --teal: #1C7293;
+      --teal-light: #6FA8C4;
+      --coral: #E8604C;
+      --coral-dim: #7a3529;
+      --bg: #F4F7FA;
+      --white: #FFFFFF;
+      --text-dark: #1A2733;
+      --muted: #5B6B7A;
+      --line: #C7D2DA;
+      --green: #2E9E6B;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-dark);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection {
+      background: var(--coral);
+      color: white;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 48px 28px 80px;
+    }
+
+    header.top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 24px;
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 28px;
+    }
+
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--teal);
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: 44px;
+      line-height: 1.05;
+      margin: 0;
+      color: var(--navy);
+      letter-spacing: -0.5px;
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--coral);
+      font-weight: 600;
+    }
+
+    .lede {
+      max-width: 420px;
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    /* ===== STAGE ===== */
+    .stage {
+      position: relative;
+      background: var(--navy);
+      border-radius: 22px;
+      padding: 40px;
+      min-height: 560px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 28px;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(28, 114, 147, 0.35), transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(232, 96, 76, 0.12), transparent 40%);
+      pointer-events: none;
+    }
+
+    .arena {
+      position: relative;
+      min-height: 480px;
+    }
+
+    .status-row {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .status-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--teal-light);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all .35s ease;
+    }
+
+    .status-pill.warn {
+      background: rgba(232, 96, 76, 0.16);
+      color: #ffb3a3;
+      border-color: rgba(232, 96, 76, 0.4);
+    }
+
+    .load-readout {
+      text-align: right;
+      color: white;
+    }
+
+    .load-readout .num {
+      font-family: 'Fraunces', serif;
+      font-size: 15px;
+      color: var(--teal-light);
+    }
+
+    /* circle field */
+    .field {
+      position: relative;
+      width: 100%;
+      height: 420px;
+    }
+
+    svg.connectors {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    svg.connectors line {
+      stroke: rgba(255, 255, 255, 0.18);
+      stroke-width: 1.5;
+      transition: stroke .4s ease, stroke-width .4s ease;
+    }
+
+    svg.connectors line.active {
+      stroke: rgba(111, 168, 196, 0.75);
+    }
+
+    svg.connectors line.failed {
+      stroke: rgba(232, 96, 76, 0.85);
+      stroke-width: 2;
+      stroke-dasharray: 4 4;
+    }
+
+    .hub {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #14618a, var(--deep-blue) 70%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+      z-index: 2;
+      transition: box-shadow .4s ease, background .5s ease;
+    }
+
+    .hub.overload {
+      background: radial-gradient(circle at 35% 30%, #a5442f, var(--coral-dim) 70%);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 44px rgba(232, 96, 76, 0.55);
+    }
+
+    .hub .ring {
+      position: absolute;
+      inset: -10px;
+      border-radius: 50%;
+    }
+
+    .hub-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    .hub-num {
+      font-family: 'Fraunces', serif;
+      font-size: 38px;
+      font-weight: 600;
+      color: white;
+      line-height: 1;
+      margin: 2px 0;
+    }
+
+    .hub-sub {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .pulse {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.3);
+      animation: pulse 2.4s ease-out infinite;
+    }
+
+    .hub.overload .pulse {
+      border-color: rgba(255, 140, 110, 0.55);
+      animation-duration: 1s;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: .7;
+      }
+
+      100% {
+        transform: scale(1.55);
+        opacity: 0;
+      }
+    }
+
+    .node {
+      position: absolute;
+      width: 104px;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 3;
+      opacity: 0;
+      transition: opacity .45s ease, transform .45s ease;
+    }
+
+    .node.show {
+      opacity: 1;
+    }
+
+    .node .icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 8px;
+      border-radius: 14px;
+      background: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 10px 20px -8px rgba(0, 0, 0, 0.5);
+      border: 2px solid transparent;
+      transition: all .4s ease;
+    }
+
+    .node.ok .icon {
+      border-color: rgba(111, 168, 196, 0.6);
+    }
+
+    .node.failed .icon {
+      background: #2a1712;
+      border-color: var(--coral);
+      filter: grayscale(0.3);
+    }
+
+    .node.failed .icon::after {
+      content: "✕";
+    }
+
+    .node .name {
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .node .task {
+      font-size: 9.5px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+      line-height: 1.3;
+      min-height: 22px;
+    }
+
+    .node.failed .task {
+      color: #ffb3a3;
+      font-weight: 600;
+    }
+
+    /* side panel */
+    .panel {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .panel-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+
+    .panel-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--teal-light);
+      margin-bottom: 10px;
+    }
+
+    .gauge-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--teal), var(--teal-light));
+      border-radius: 999px;
+      transition: width .5s ease, background .4s ease;
+    }
+
+    .gauge-fill.danger {
+      background: linear-gradient(90deg, #a5442f, var(--coral));
+    }
+
+    .gauge-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .15s ease, opacity .2s ease, box-shadow .2s ease;
+      margin-top: 8px;
+    }
+
+    .btn:first-of-type {
+      margin-top: 0;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--teal-light);
+      color: var(--navy);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 6px 18px -6px rgba(111, 168, 196, 0.6);
+    }
+
+    .btn-danger {
+      background: var(--coral);
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      box-shadow: 0 6px 18px -6px rgba(232, 96, 76, 0.6);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .btn-ghost:hover {
+      color: white;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .log {
+      height: 190px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+
+    .log::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .log::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+
+    .log-entry {
+      padding: 6px 9px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.65);
+      border-left: 2px solid rgba(255, 255, 255, 0.15);
+      animation: slideIn .3s ease;
+    }
+
+    .log-entry.bad {
+      border-left-color: var(--coral);
+      color: #ffcfc4;
+      background: rgba(232, 96, 76, 0.08);
+    }
+
+    .log-entry.good {
+      border-left-color: var(--green);
+      color: #b9ecd3;
+    }
+
+    .log-empty {
+      color: rgba(255, 255, 255, 0.3);
+      font-style: italic;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ===== below stage ===== */
+    .lower {
+      margin-top: 40px;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 28px;
+    }
+
+    .explain-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 26px 28px;
+    }
+
+    .explain-card h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      margin: 0 0 10px;
+      color: var(--navy);
+    }
+
+    .explain-card p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+
+    .explain-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .explain-card strong {
+      color: var(--text-dark);
+    }
+
+    .discuss-card {
+      background: var(--navy-2);
+      border-radius: 16px;
+      padding: 26px 28px;
+      color: white;
+    }
+
+    .discuss-card h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      margin: 0 0 14px;
+      color: white;
+    }
+
+    .discuss-card ol {
+      margin: 0;
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .discuss-card li {
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .discuss-card li::marker {
+      color: var(--coral);
+      font-weight: 700;
+    }
+
+    .howto {
+      margin-top: 20px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+    }
+
+    .howto b {
+      color: var(--teal);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 880px) {
+      .stage {
+        grid-template-columns: 1fr;
+      }
+
+      .lower {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .field {
+        height: 380px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <header class="top">
+      <div>
+        <div class="eyebrow">Live Demo · Cloud Concentration Risk</div>
+        <h1>The Shared <em>Server</em>.</h1>
+      </div>
+      <p class="lede">This machine was built for one steady user. Watch what happens as more people quietly start
+        depending on it &mdash; and what happens to all of them the moment it needs to step away.</p>
+    </header>
+
+    <div class="stage">
+      <div class="arena">
+        <div class="status-row">
+          <div class="status-pill" id="statusPill">System nominal</div>
+          <div class="load-readout">
+            <div class="num" id="loadNum">0 / 6 connected</div>
+          </div>
+        </div>
+
+        <div class="field" id="field">
+          <svg class="connectors" id="connectors"></svg>
+          <div class="hub" id="hub">
+            <div class="pulse"></div>
+            <div class="hub-label">Current load</div>
+            <div class="hub-num" id="hubNum">0</div>
+            <div class="hub-sub" id="hubSub">baseline design: 1 user</div>
+          </div>
+          <!-- nodes injected by JS -->
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-card">
+          <div class="panel-title">Capacity</div>
+          <div class="gauge-track">
+            <div class="gauge-fill" id="gaugeFill"></div>
+          </div>
+          <div class="gauge-labels"><span>0</span><span id="gaugeMaxLabel">designed for 1 · tested to 6</span></div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-title">Controls</div>
+          <button class="btn btn-primary" id="addBtn">+ Connect next app</button>
+          <button class="btn btn-danger" id="updateBtn" disabled>Run scheduled update</button>
+          <button class="btn btn-ghost" id="resetBtn">Reset simulation</button>
+        </div>
+
+        <div class="panel-card" style="flex:1; display:flex; flex-direction:column;">
+          <div class="panel-title">Impact log</div>
+          <div class="log" id="log">
+            <div class="log-empty">Nothing connected yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lower">
+      <div class="explain-card">
+        <h2>What just happened</h2>
+        <p id="explainText"><strong>Click "Connect next app"</strong> six times. Each click represents one more person
+          or app that has quietly started relying on this one server &mdash; texting a friend, splitting a bill, booking
+          a ride, submitting an assignment. None of them chose to share infrastructure with the other five. They just
+          used apps that happened to.</p>
+        <p id="explainText2" style="display:none;"></p>
+      </div>
+
+
+      <div class="howto">
+        <b>For the presenter</b>
+        <span>Run this live: add all 6 apps one at a time while narrating each as a real action (a message, a payment, a
+          booking). Then hit "Run scheduled update" without warning &mdash; let the class react to the log before you
+          explain why it happened.</span>
+      </div>
+
+    </div>
+
+    <script>
+      (function () {
+        const APPS = [
+          { icon: "💬", name: "Group Chat", task: "sending a message to a friend", fail: "Message stuck — never delivered" },
+          { icon: "💳", name: "Split Pay", task: "splitting dinner, ₹450", fail: "Payment stuck mid-transfer — ₹450 in limbo" },
+          { icon: "🚕", name: "Ride Booking", task: "booking a ride home", fail: "Booking cancelled — driver already on the way" },
+          { icon: "📎", name: "Assignment", task: "uploading a submission", fail: "Upload failed — 4 minutes to deadline" },
+          { icon: "🎮", name: "Game Night", task: "mid-match with friends", fail: "Disconnected — match progress lost" },
+          { icon: "📞", name: "Video Call", task: "on a call with family", fail: "Call dropped mid-sentence" },
+        ];
+
+        const field = document.getElementById('field');
+        const svg = document.getElementById('connectors');
+        const hub = document.getElementById('hub');
+        const hubNum = document.getElementById('hubNum');
+        const hubSub = document.getElementById('hubSub');
+        const loadNum = document.getElementById('loadNum');
+        const statusPill = document.getElementById('statusPill');
+        const gaugeFill = document.getElementById('gaugeFill');
+        const addBtn = document.getElementById('addBtn');
+        const updateBtn = document.getElementById('updateBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const log = document.getElementById('log');
+        const explainText = document.getElementById('explainText');
+        const explainText2 = document.getElementById('explainText2');
+
+        let connected = 0;
+        let nodesEls = [];
+        let lineEls = [];
+        let updateRan = false;
+
+        function clearLogEmpty() {
+          const empty = log.querySelector('.log-empty');
+          if (empty) empty.remove();
+        }
+
+        function addLog(text, kind) {
+          clearLogEmpty();
+          const e = document.createElement('div');
+          e.className = 'log-entry' + (kind ? ' ' + kind : '');
+          e.textContent = text;
+          log.prepend(e);
+        }
+
+        function layoutPositions(n) {
+          // positions around a circle, hub at center
+          const w = field.clientWidth, h = field.clientHeight;
+          const cx = w / 2, cy = h / 2;
+          const r = Math.min(w, h) / 2 - 70;
+          const pts = [];
+          for (let i = 0; i < n; i++) {
+            const angle = (Math.PI * 2 * i / n) - Math.PI / 2;
+            pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+          }
+          return { pts, cx, cy };
+        }
+
+        function buildNodes() {
+          field.querySelectorAll('.node').forEach(n => n.remove());
+          svg.innerHTML = '';
+          nodesEls = []; lineEls = [];
+          const { pts, cx, cy } = layoutPositions(APPS.length);
+          APPS.forEach((app, i) => {
+            const node = document.createElement('div');
+            node.className = 'node';
+            node.style.left = pts[i].x + 'px';
+            node.style.top = pts[i].y + 'px';
+            node.innerHTML = `
+        <div class="icon">${app.icon}</div>
+        <div class="name">${app.name}</div>
+        <div class="task"></div>
+      `;
+            field.appendChild(node);
+            nodesEls.push(node);
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', cx); line.setAttribute('y1', cy);
+            line.setAttribute('x2', pts[i].x); line.setAttribute('y2', pts[i].y);
+            svg.appendChild(line);
+            lineEls.push(line);
+          });
+        }
+
+        function updateGauge() {
+          const pct = Math.min(connected / 6, 1) * 100;
+          gaugeFill.style.width = pct + '%';
+          loadNum.textContent = connected + ' / 6 connected';
+          hubNum.textContent = connected;
+        }
+
+        function addApp() {
+          if (connected >= 6) return;
+          const i = connected;
+          connected++;
+          const node = nodesEls[i];
+          node.classList.add('show', 'ok');
+          node.querySelector('.task').textContent = APPS[i].task;
+          lineEls[i].classList.add('active');
+          updateGauge();
+          addLog(`${APPS[i].name} connected — ${APPS[i].task}.`, connected <= 1 ? 'good' : null);
+
+          if (connected === 1) {
+            statusPill.textContent = 'System nominal — 1 user, as designed';
+            explainText2.style.display = 'none';
+          } else if (connected < 6) {
+            statusPill.textContent = `Running fine at ${connected} — well past its designed load`;
+          } else {
+            statusPill.textContent = 'Peak load — 6 depend on this one server now';
+            addBtn.disabled = true;
+            updateBtn.disabled = false;
+            explainText.innerHTML = `<strong>All six are connected — and it still works.</strong> That's the trap: nothing here looks risky. The server is coping fine. But every one of these six now has exactly one path to get their task done, and none of them know the other five exist.`;
+            explainText2.style.display = 'block';
+            explainText2.innerHTML = `Now click <strong>"Run scheduled update"</strong> — no warning, just like a real maintenance window.`;
+          }
+        }
+
+        function runUpdate() {
+          if (updateRan) return;
+          updateRan = true;
+          updateBtn.disabled = true;
+          addBtn.disabled = true;
+
+          hub.classList.add('overload');
+          hubSub.textContent = 'maintenance window — capacity cut to 2';
+          statusPill.textContent = 'MAINTENANCE WINDOW — capacity reduced';
+          statusPill.classList.add('warn');
+          gaugeFill.classList.add('danger');
+          addLog('— Scheduled update started. No advance notice sent. —', null);
+
+          // pick 4 of the 6 to fail, keep 2 alive
+          const idxs = [0, 1, 2, 3, 4, 5];
+          for (let i = idxs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+          }
+          const failing = idxs.slice(0, 4);
+          const surviving = idxs.slice(4);
+
+          failing.forEach((idx, order) => {
+            setTimeout(() => {
+              const node = nodesEls[idx];
+              node.classList.remove('ok');
+              node.classList.add('failed');
+              node.querySelector('.task').textContent = APPS[idx].fail;
+              lineEls[idx].classList.remove('active');
+              lineEls[idx].classList.add('failed');
+              addLog(`${APPS[idx].name} — ${APPS[idx].fail}`, 'bad');
+            }, 500 + order * 550);
+          });
+
+          setTimeout(() => {
+            addLog(`${surviving.map(i => APPS[i].name).join(' & ')} kept working — they just got lucky with timing.`, null);
+            explainText.innerHTML = `<strong>4 of 6 failed. 0 warning given. 0 of them did anything wrong.</strong> The server didn't get hacked — it just did routine maintenance. But because all six had exactly one shared dependency, that routine event became four separate personal losses at the exact same moment.`;
+            explainText2.style.display = 'block';
+            explainText2.innerHTML = `This is concentration risk: <strong>the failure isn't in any single app. It's in the fact that they all stood on the same ground.</strong>`;
+          }, 500 + failing.length * 550 + 400);
+        }
+
+        function reset() {
+          connected = 0;
+          updateRan = false;
+          buildNodes();
+          updateGauge();
+          hub.classList.remove('overload');
+          hubSub.textContent = 'baseline design: 1 user';
+          statusPill.textContent = 'System nominal';
+          statusPill.classList.remove('warn');
+          gaugeFill.classList.remove('danger');
+          addBtn.disabled = false;
+          updateBtn.disabled = true;
+          log.innerHTML = '<div class="log-empty">Nothing connected yet.</div>';
+          explainText.innerHTML = `<strong>Click "Connect next app"</strong> six times. Each click represents one more person or app that has quietly started relying on this one server — texting a friend, splitting a bill, booking a ride, submitting an assignment. None of them chose to share infrastructure with the other five. They just used apps that happened to.`;
+          explainText2.style.display = 'none';
+        }
+
+        addBtn.addEventListener('click', addApp);
+        updateBtn.addEventListener('click', runUpdate);
+        resetBtn.addEventListener('click', reset);
+        window.addEventListener('resize', () => { buildNodes(); for (let i = 0; i < connected; i++) { nodesEls[i].classList.add('show', 'ok'); nodesEls[i].querySelector('.task').textContent = APPS[i].task; lineEls[i].classList.add('active'); } });
+
+        buildNodes();
+        updateGauge();
+      })();
+    </script>
+
+</body>
+
+</html>
