@@ -408,17 +408,6 @@ The initial classroom version should remain simple enough to operate within the 
 
 ---
 
-# Recommended Presentation Ending
-
-The presentation should conclude with:
-
-> **"If your business has ten applications but all of them depend on the same provider, do you really have ten independent systems?"**
-
-Final takeaway:
-
-> **"Cloud concentration risk isn't about whether the cloud is secure. It's about what happens when everyone depends on the same cloud."**
-
----
 
 # Syllabus Alignment
 
@@ -457,49 +446,3 @@ The project connects primarily to:
 
 ---
 
-# Project Status
-
-### Current Stage
-
-* [x] Topic selected
-* [x] Syllabus alignment identified
-* [x] Presentation storyline designed
-* [x] AWS case study selected
-* [x] Cloudflare case study selected
-* [x] Risk categories identified
-* [x] Governance/compliance angle defined
-* [x] Mitigation strategies identified
-* [x] Interactive simulation concept designed
-* [ ] Verify final case-study facts from primary sources
-* [ ] Build final PPT
-* [ ] Build interactive simulation
-* [ ] Conduct 5-minute rehearsal
-* [ ] Optimize timing
-
----
-
-# Important Presentation Rule
-
-The presentation is only **5 minutes**.
-
-Therefore:
-
-* Avoid excessive history.
-* Avoid explaining cloud computing from scratch.
-* Avoid too many case studies.
-* Avoid long regulatory definitions.
-* Avoid overly technical cloud architecture.
-
-Focus on:
-
-> **One concept → two real incidents → one governance problem → one interactive simulation → one memorable conclusion.**
-
----
-
-# Final Topic
-
-## Cloud Concentration Risk: The Hidden Single Point of Failure in Modern Enterprises
-
-### Core message
-
-> **A system can be individually secure and still be collectively vulnerable when too many critical services depend on the same underlying provider.**
